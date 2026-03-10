@@ -153,8 +153,9 @@ def unregister_from_activity(activity_name: str, email: str):
 
     activity = activities[activity_name]
 
-    if email not in activity["participants"]:
+    participants = activity["participants"]
+    original_len = len(participants)
+    activity["participants"] = [p for p in participants if p != email]
+    if len(activity["participants"]) == original_len:
         raise HTTPException(status_code=404, detail="Student not found in activity")
-
-    activity["participants"].remove(email)
     return {"message": f"Unregistered {email} from {activity_name}"}
