@@ -20,12 +20,45 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
+        const participantsList = details.participants
+          .map(email => `<li><span class="participant-email">${email}</span><button class="remove-btn" data-activity="${name}" data-email="${email}" title="Remove ${email}">&#x2715;</button></li>`)
+          .join("");
+
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <div class="participants-section">
+            <strong>Participants:</strong>
+            ${details.participants.length
+              ? `<ul class="participants-list">${participantsList}</ul>`
+              : `<p class="no-participants">No participants yet — be the first!</p>`
+            }
+          </div>
         `;
+
+        // Attach delete handlers for participant remove buttons
+        activityCard.querySelectorAll(".remove-btn").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const activityName = btn.dataset.activity;
+            const email = btn.dataset.email;
+            try {
+              const res = await fetch(
+                `/activities/${encodeURIComponent(activityName)}/signup?email=${encodeURIComponent(email)}`,
+                { method: "DELETE" }
+              );
+              if (res.ok) {
+                fetchActivities();
+              } else {
+                const err = await res.json();
+                alert(err.detail || "Failed to remove participant");
+              }
+            } catch (e) {
+              console.error("Error removing participant:", e);
+            }
+          });
+        });
 
         activitiesList.appendChild(activityCard);
 
@@ -62,6 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
