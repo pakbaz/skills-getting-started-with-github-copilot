@@ -13,6 +13,11 @@ document.addEventListener("DOMContentLoaded", () => {
       // Clear loading message
       activitiesList.innerHTML = "";
 
+      // Clear select options but preserve the first placeholder option
+      while (activitySelect.options.length > 1) {
+        activitySelect.remove(1);
+      }
+
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
         const activityCard = document.createElement("div");
@@ -20,12 +25,88 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
-        activityCard.innerHTML = `
-          <h4>${name}</h4>
-          <p>${details.description}</p>
-          <p><strong>Schedule:</strong> ${details.schedule}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
-        `;
+        // Build card content using DOM APIs to avoid XSS from untrusted values
+        const nameEl = document.createElement("h4");
+        nameEl.textContent = name;
+
+        const descEl = document.createElement("p");
+        descEl.textContent = details.description;
+
+        const scheduleEl = document.createElement("p");
+        const scheduleStrong = document.createElement("strong");
+        scheduleStrong.textContent = "Schedule: ";
+        scheduleEl.appendChild(scheduleStrong);
+        scheduleEl.appendChild(document.createTextNode(details.schedule));
+
+        const availEl = document.createElement("p");
+        const availStrong = document.createElement("strong");
+        availStrong.textContent = "Availability: ";
+        availEl.appendChild(availStrong);
+        availEl.appendChild(document.createTextNode(`${spotsLeft} spots left`));
+
+        const participantsSection = document.createElement("div");
+        participantsSection.className = "participants-section";
+
+        const participantsLabel = document.createElement("strong");
+        participantsLabel.textContent = "Participants:";
+        participantsSection.appendChild(participantsLabel);
+
+        if (details.participants.length > 0) {
+          const ul = document.createElement("ul");
+          ul.className = "participants-list";
+
+          details.participants.forEach(email => {
+            const li = document.createElement("li");
+
+            const span = document.createElement("span");
+            span.className = "participant-email";
+            span.textContent = email;
+
+            const removeBtn = document.createElement("button");
+            removeBtn.className = "remove-btn";
+            removeBtn.dataset.activity = name;
+            removeBtn.dataset.email = email;
+            removeBtn.setAttribute("aria-label", `Remove ${email}`);
+            removeBtn.title = `Remove ${email}`;
+            removeBtn.textContent = "\u2715";
+
+            removeBtn.addEventListener("click", async () => {
+              const activityName = removeBtn.dataset.activity;
+              const participantEmail = removeBtn.dataset.email;
+              try {
+                const res = await fetch(
+                  `/activities/${encodeURIComponent(activityName)}/signup?email=${encodeURIComponent(participantEmail)}`,
+                  { method: "DELETE" }
+                );
+                if (res.ok) {
+                  fetchActivities();
+                } else {
+                  const err = await res.json();
+                  alert(err.detail || "Failed to remove participant");
+                }
+              } catch (e) {
+                console.error("Error removing participant:", e);
+              }
+            });
+
+            li.appendChild(span);
+            li.appendChild(removeBtn);
+            ul.appendChild(li);
+          });
+
+          participantsSection.appendChild(ul);
+        } else {
+          const noParticipants = document.createElement("p");
+          noParticipants.className = "no-participants";
+          noParticipants.textContent = "No participants yet \u2014 be the first!";
+          participantsSection.appendChild(noParticipants);
+        }
+
+        activityCard.appendChild(nameEl);
+        activityCard.appendChild(descEl);
+        activityCard.appendChild(scheduleEl);
+        activityCard.appendChild(availEl);
+        activityCard.appendChild(participantsSection);
 
         activitiesList.appendChild(activityCard);
 
@@ -62,6 +143,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
